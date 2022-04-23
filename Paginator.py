@@ -83,13 +83,15 @@ class Page(discord.Embed):
     def __add__(self, other):
         if not isinstance(other, Page):
             raise NotAPage(f"Invalid Operation of type 'Page' and '{type(other)}'")
-        if self._index == other.index:
+        if self._index == other.index and self._index is not None:
             raise InvalidIndex('You must provide a unique index for every page!')
         return Book([self, other])
 
 
 class Book(discord.ui.View):
-    def __init__(self, pages: typing.Optional[list]):
+    def __init__(self, pages: typing.Optional[list], autoindex: bool = True):
+        if None in [x.index for x in pages] and autoindex:
+            self.autoindex(pages)
         self._pages = self.sort(pages)
         self.index = 0
         self._indexes = []
@@ -160,3 +162,40 @@ class Book(discord.ui.View):
         if isinstance(other, Book):
             pass
             # TODO think of a way to reset Indexes, basically an autoindex
+
+    def autoindex(self, pages):
+        known_indexes = []
+        known_nones = []
+        available_indexes = []
+        for page in pages:
+            if page.index is not None and page.index not in known_indexes:
+                known_indexes.append(page)
+            else:
+                known_nones.append(page)
+        if len(known_nones) < 1:
+            return pages
+        known_indexes = self.sort(known_indexes)
+        for i in range(len(known_indexes)-1):
+            if known_indexes[i].index+1 == known_indexes[i+1].index:
+                continue
+            else:
+                difference = known_indexes[i].index + 1 - known_indexes[i + 1].index
+                if difference > 1:
+                    for i2 in range(difference):
+                        available_indexes.append(known_indexes[i].index + 1 + i2)
+                        continue
+                available_indexes.append(i)
+        if len(available_indexes) < len(known_nones):
+            difference = len(known_nones) - len(available_indexes)
+            for i in range(difference):
+                available_indexes.append(known_indexes[len(known_indexes)+1]+i)
+        for none in known_nones:
+            none.index = available_indexes[0]
+            available_indexes.pop(0)
+        final_indexes = known_indexes + known_nones
+        final_indexes = self.sort(final_indexes)
+        return final_indexes
+
+
+
+
