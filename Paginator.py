@@ -91,8 +91,9 @@ class Page(discord.Embed):
 class Book(discord.ui.View):
     def __init__(self, pages: typing.Optional[list], autoindex: bool = True):
         if None in [x.index for x in pages] and autoindex:
-            self.autoindex(pages)
+            pages = self.autoindex(pages)
         self._pages = self.sort(pages)
+        self._pages = self.fill_empty_slots(self._pages)
         self.index = 0
         self._indexes = []
         super().__init__(timeout=None)
@@ -195,6 +196,18 @@ class Book(discord.ui.View):
         final_indexes = known_indexes + known_nones
         final_indexes = self.sort(final_indexes)
         return final_indexes
+
+    @staticmethod
+    def fill_empty_slots(pages):
+        if pages[0].index != 0:
+            pages[0].index = 0
+        for i in range(len(pages)-1):
+            if pages[i].index + 1 == pages[i + 1].index:
+                continue
+            else:
+                pages[i + 1].index = pages[i].index + 1
+        return pages
+
 
 
 
