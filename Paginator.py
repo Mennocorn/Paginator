@@ -2,6 +2,9 @@
 # as a general idea, we will have multiple classes representing:
 #  - a page
 #  - a "book"/ the embed and discord.View we are working with
+#  - add categories with a select menu
+#  - modal with page entry
+
 import datetime
 import typing
 from operator import itemgetter
@@ -88,15 +91,45 @@ class Page(discord.Embed):
         return Book([self, other])
 
 
+class EnterIndexModal(discord.ui.Modal, title='Go to by index'):
+
+    index = discord.ui.TextInput(required=True, label='Enter a page index!')
+
+    def __init__(self, book):
+        self._book = book
+        super().__init__(timeout=None)
+
+    async def on_submit(self, interaction: discord.Interaction):
+        try:
+            value = int(self.index.value) - 1
+        except Exception as e:
+            return await interaction.response.send_message('The entered index is not a numeric value.', ephemeral=True)
+
+        if value < 1 or value > max([page.index for page in self._book.pages]):
+            return await interaction.response.send_message('The entered index is not a valid page.', ephemeral=True)
+        await interaction.response.edit_message(embed=self._book.pages[value])
+        self._book.index = value
+        self._book.check_borders()
+
+
 class Book(discord.ui.View):
-    def __init__(self, pages: typing.Optional[list], autoindex: bool = True):
+    def __init__(self, pages: typing.Optional[list], user: discord.User = None, autoindex: bool = True):
         if None in [x.index for x in pages] and autoindex:
             pages = self.autoindex(pages)
         self._pages = self.sort(pages)
         self._pages = self.fill_empty_slots(self._pages)
         self.index = 0
         self._indexes = []
+        self.user = user
         super().__init__(timeout=None)
+
+    @property
+    def pages(self):
+        return self._pages
+
+    @property
+    def indexes(self):
+        return self._indexes
 
     @discord.ui.button(label='<<', style=discord.ButtonStyle.grey, disabled=True)
     async def first_page(self, interaction: discord.Interaction, button: discord.Button):
@@ -125,6 +158,27 @@ class Book(discord.ui.View):
         self.index = len(self._pages) - 1
         self.check_borders()
         await interaction.response.edit_message(embed=self._pages[self.index], view=self)
+
+    @discord.ui.button(label='🚫', style=discord.ButtonStyle.grey, disabled=True)
+    async def filler1(self, interaction: discord.Interaction, button: discord.Button):
+        pass
+    # ⛔
+
+    @discord.ui.button(label='🚫', style=discord.ButtonStyle.grey, disabled=True)
+    async def filler2(self, interaction: discord.Interaction, button: discord.Button):
+        pass
+
+    @discord.ui.button(label='🔢', style=discord.ButtonStyle.grey)
+    async def enter_index(self, interaction: discord.Interaction, button: discord.Button):
+        await interaction.response.send_modal(EnterIndexModal(self))
+
+    @discord.ui.button(label='🚫', style=discord.ButtonStyle.grey, disabled=True)
+    async def filler4(self, interaction: discord.Interaction, button: discord.Button):
+        pass
+
+    @discord.ui.button(label='🚫', style=discord.ButtonStyle.grey, disabled=True)
+    async def filler5(self, interaction: discord.Interaction, button: discord.Button):
+        pass
 
     def check_borders(self):
         first_two = False
@@ -207,6 +261,11 @@ class Book(discord.ui.View):
             else:
                 pages[i + 1].index = pages[i].index + 1
         return pages
+
+    async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        if self.user is None or interaction.user.id == self.user.id:
+            return True
+        return False
 
 
 
