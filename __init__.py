@@ -1,2 +1,2 @@
-from .Paginator import Page
+from .Paginator import Page, Book
 

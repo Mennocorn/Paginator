@@ -18,9 +18,11 @@ async def on_ready():
 @bot.command()
 async def test(ctx):
     print('command reached')
-    page1 = Page(index=0, color=None, title='hey', url=None, description='Just a funny hello', timestamp=datetime.datetime.now(), fields=None, author=None, image_url=None, thumbnail=None)
-    page2 = Page(index=1, color=None, title='hey2222', url=None, description='Just a funny hello', timestamp=datetime.datetime.now(), fields=None, author=None, image_url=None, thumbnail=None)
-    book = page1 + page2
+    pages = []
+    for i in range(1, 21):
+        pages.append(Page(color=None, title=str(i), url=None, description='Just a funny hello', timestamp=datetime.datetime.now(), fields=None, author=None, image_url=None, thumbnail=None))
+    pages.append(Page(index=45, color=None, title=str(21), url=None, description='Just a funny hello', timestamp=datetime.datetime.now(), fields=None, author=None, image_url=None, thumbnail=None))
+    book = Book(pages, autoindex=True, user=ctx.author)
     await ctx.reply(content=None, embed=book.start(), view=book)
 
 

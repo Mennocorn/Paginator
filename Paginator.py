@@ -12,8 +12,7 @@ from operator import itemgetter
 from utils.errors import InvalidIndex, NotAPage
 import discord as discord
 
-
-indexes = []
+from utils.math_helper import get_difference
 
 
 class Page(discord.Embed):
@@ -40,11 +39,7 @@ class Page(discord.Embed):
                  author: typing.Optional[dict] = None,
                  image_url: typing.Optional[str] = None,
                  thumbnail: typing.Optional[str] = None):
-        if index is None:
-            raise InvalidIndex('You must provide an Index for this page!')
-        if index in indexes:
-            raise InvalidIndex('You must provide a unique index for every page!')
-        indexes.append(index)
+
         self._index = index
         self.color = color
         self.title = title
@@ -74,14 +69,10 @@ class Page(discord.Embed):
 
     @index.setter
     def index(self, value: int):
-        indexes.remove(self._index)
-        if self._book is not None:
-            if value in self._book.indexes:
-                raise InvalidIndex('You must provide a unique index for every page!')
         self._index = value
 
     def __lt__(self, other):
-        return self.index < other.index
+        return self._index < other.index
 
     def __add__(self, other):
         if not isinstance(other, Page):
@@ -107,21 +98,28 @@ class EnterIndexModal(discord.ui.Modal, title='Go to by index'):
 
         if value < 1 or value > max([page.index for page in self._book.pages]):
             return await interaction.response.send_message('The entered index is not a valid page.', ephemeral=True)
-        await interaction.response.edit_message(embed=self._book.pages[value])
         self._book.index = value
         self._book.check_borders()
+        await interaction.response.edit_message(embed=self._book.pages[value], view=self._book)
 
 
 class Book(discord.ui.View):
     def __init__(self, pages: typing.Optional[list], user: discord.User = None, autoindex: bool = True):
-        if None in [x.index for x in pages] and autoindex:
-            pages = self.autoindex(pages)
-        self._pages = self.sort(pages)
+        self._pages = pages
+        if autoindex:
+            for page in self._pages:
+                print(page.index)
+            print('---------------------------')
+            self._pages = self.autoindex(pages)
+            for page in self._pages:
+                print(page.index)
+        self._pages = self.sort(self._pages)
         self._pages = self.fill_empty_slots(self._pages)
         self.index = 0
         self._indexes = []
         self.user = user
         super().__init__(timeout=None)
+        self.check_borders()
 
     @property
     def pages(self):
@@ -143,9 +141,11 @@ class Book(discord.ui.View):
         self.check_borders()
         await interaction.response.edit_message(embed=self._pages[self.index], view=self)
 
-    @discord.ui.button(label='🤖', style=discord.ButtonStyle.grey)
+    @discord.ui.button(label='🛑', style=discord.ButtonStyle.grey)
     async def reload(self, interaction: discord.Interaction, button: discord.Button):
-        pass
+        self.clear_items()
+        embed = discord.Embed(title='Finished', description=f'Started by: {self.user.mention or "unknown"}')
+        await interaction.response.edit_message(embed=embed, view=self)
 
     @discord.ui.button(label='>', style=discord.ButtonStyle.grey)
     async def next_page(self, interaction: discord.Interaction, button: discord.Button):
@@ -180,15 +180,18 @@ class Book(discord.ui.View):
     async def filler5(self, interaction: discord.Interaction, button: discord.Button):
         pass
 
-    def check_borders(self):
+    def check_borders(self, index=None):
         first_two = False
         second_two = False
+        self.index = index or self.index
         if self.index == 0:
             first_two = True
         if self.index == len(self._pages)-1:
             second_two = True
+        print(self.index)
         self.children[0].disabled, self.children[1].disabled = first_two, first_two
         self.children[3].disabled, self.children[4].disabled = second_two, second_two
+        self.children[5].label = f'{self.index + 1}/{len(self.pages)}'
 
     def start(self):
         return self._pages[0]
@@ -227,28 +230,54 @@ class Book(discord.ui.View):
                 known_indexes.append(page)
             else:
                 known_nones.append(page)
+        if len(known_indexes) == 0 and len(known_nones) >= 1:
+            i = 0
+            for page in known_nones:
+                page.index = i
+                i += 1
+            return known_nones
+        print([page.index for page in known_indexes])
+        print([page.index for page in known_nones])
+        print('entry-----------------------------------------------')
         if len(known_nones) < 1:
+            print('no nones')
+            print('nones-----------------------------------------------')
             return pages
         known_indexes = self.sort(known_indexes)
+        print([page.index for page in known_indexes])
+        print('after sort-----------------------------------------------')
         for i in range(len(known_indexes)-1):
             if known_indexes[i].index+1 == known_indexes[i+1].index:
-                continue
+                print('is 1 larger')
+                print('check for largeness-----------------------------------------------')
             else:
-                difference = known_indexes[i].index + 1 - known_indexes[i + 1].index
+                difference = get_difference(known_indexes[i + 1].index, known_indexes[i].index)
+                print(difference)
+                print('-----------------------------------------------')
                 if difference > 1:
                     for i2 in range(difference):
                         available_indexes.append(known_indexes[i].index + 1 + i2)
-                        continue
                 available_indexes.append(i)
+                print(available_indexes)
+                print('-----------------------------------------------')
+        print(available_indexes)
+        print('before add available indexes-----------------------------------------------')
         if len(available_indexes) < len(known_nones):
-            difference = len(known_nones) - len(available_indexes)
+            difference = get_difference(len(known_nones), len(available_indexes))
             for i in range(difference):
-                available_indexes.append(known_indexes[len(known_indexes)+1]+i)
-        for none in known_nones:
-            none.index = available_indexes[0]
-            available_indexes.pop(0)
+                available_indexes.append(known_indexes[len(known_indexes)-1].index+i+1)
+            print(available_indexes)
+            print('after add available indexes-----------------------------------------------')
+        print(available_indexes)
+        for i in range(len(known_nones)):
+            print(known_nones[i].index)
+            print(available_indexes)
+            known_nones[i].index = available_indexes[i]
+
         final_indexes = known_indexes + known_nones
+        print([page.index for page in final_indexes])
         final_indexes = self.sort(final_indexes)
+
         return final_indexes
 
     @staticmethod
@@ -265,6 +294,7 @@ class Book(discord.ui.View):
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
         if self.user is None or interaction.user.id == self.user.id:
             return True
+        await interaction.response.send_message(f"You can't use this paginator, it belongs to {self.user.mention}.", ephemeral=True)
         return False
 
 
