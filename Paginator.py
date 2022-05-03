@@ -39,7 +39,8 @@ class Page(discord.Embed):
                  author: typing.Optional[dict] = None,
                  image_url: typing.Optional[str] = None,
                  thumbnail: typing.Optional[str] = None):
-
+        if index is not None and index < 0:
+            raise InvalidIndex("Index can't be lower than 0")
         self._index = index
         self.color = color
         self.title = title
@@ -76,7 +77,7 @@ class Page(discord.Embed):
 
     def __add__(self, other):
         if not isinstance(other, Page):
-            raise NotAPage(f"Invalid Operation of type 'Page' and '{type(other)}'")
+            raise NotAPage(f"Invalid Operation of type '{type(other)}' and 'Page'")
         if self._index == other.index and self._index is not None:
             raise InvalidIndex('You must provide a unique index for every page!')
         return Book([self, other])
@@ -107,14 +108,13 @@ class Book(discord.ui.View):
     def __init__(self, pages: typing.Optional[list], user: discord.User = None, autoindex: bool = True):
         self._pages = pages
         if autoindex:
-            for page in self._pages:
-                print(page.index)
-            print('---------------------------')
             self._pages = self.autoindex(pages)
             for page in self._pages:
                 print(page.index)
         self._pages = self.sort(self._pages)
         self._pages = self.fill_empty_slots(self._pages)
+        for page in self._pages:
+            print(page.index)
         self.index = 0
         self._indexes = []
         self.user = user
@@ -188,7 +188,6 @@ class Book(discord.ui.View):
             first_two = True
         if self.index == len(self._pages)-1:
             second_two = True
-        print(self.index)
         self.children[0].disabled, self.children[1].disabled = first_two, first_two
         self.children[3].disabled, self.children[4].disabled = second_two, second_two
         self.children[5].label = f'{self.index + 1}/{len(self.pages)}'
@@ -236,46 +235,29 @@ class Book(discord.ui.View):
                 page.index = i
                 i += 1
             return known_nones
-        print([page.index for page in known_indexes])
-        print([page.index for page in known_nones])
-        print('entry-----------------------------------------------')
         if len(known_nones) < 1:
-            print('no nones')
-            print('nones-----------------------------------------------')
             return pages
         known_indexes = self.sort(known_indexes)
-        print([page.index for page in known_indexes])
-        print('after sort-----------------------------------------------')
         for i in range(len(known_indexes)-1):
             if known_indexes[i].index+1 == known_indexes[i+1].index:
-                print('is 1 larger')
-                print('check for largeness-----------------------------------------------')
+                continue
             else:
                 difference = get_difference(known_indexes[i + 1].index, known_indexes[i].index)
-                print(difference)
-                print('-----------------------------------------------')
                 if difference > 1:
                     for i2 in range(difference):
                         available_indexes.append(known_indexes[i].index + 1 + i2)
                 available_indexes.append(i)
-                print(available_indexes)
-                print('-----------------------------------------------')
-        print(available_indexes)
-        print('before add available indexes-----------------------------------------------')
+        if known_indexes[0].index > 0:
+            difference = known_indexes[0].index
+            for i in range(difference):
+                available_indexes.append(i)
         if len(available_indexes) < len(known_nones):
             difference = get_difference(len(known_nones), len(available_indexes))
             for i in range(difference):
                 available_indexes.append(known_indexes[len(known_indexes)-1].index+i+1)
-            print(available_indexes)
-            print('after add available indexes-----------------------------------------------')
-        print(available_indexes)
         for i in range(len(known_nones)):
-            print(known_nones[i].index)
-            print(available_indexes)
             known_nones[i].index = available_indexes[i]
-
         final_indexes = known_indexes + known_nones
-        print([page.index for page in final_indexes])
         final_indexes = self.sort(final_indexes)
 
         return final_indexes
