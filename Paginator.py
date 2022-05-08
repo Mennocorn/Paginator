@@ -26,10 +26,11 @@ class Page(discord.Embed):
     __timestamp__: the embed`s timestamp located at the bottom left
     __fields__: all fields the embed should have >! 25
     __author__: the embed`s author located at the top left
-    __image_url__: a url pointing to an image on the web
+    __image_url__: an url pointing to an image on the web
     Returns Something
     """
-    def __init__(self, index: int = None,
+    def __init__(self,
+                 index: int = None,
                  color: typing.Optional[int] = None,
                  title: typing.Optional[str] = None,
                  url: typing.Optional[str] = None,
@@ -53,7 +54,7 @@ class Page(discord.Embed):
         self.all_fields = fields
         self.init_author = author
         self.image_url = image_url
-        super().__init__(title=self.title, description=self.description, color=self.color, url=self.url, timestamp=self.timestamp,  )
+        super().__init__(title=self.title, description=self.description, color=self.color, url=self.url, timestamp=self.timestamp)
 
     @property
     def book(self):
@@ -99,27 +100,23 @@ class EnterIndexModal(discord.ui.Modal, title='Go to by index'):
 
         if value < 1 or value > max([page.index for page in self._book.pages]):
             return await interaction.response.send_message('The entered index is not a valid page.', ephemeral=True)
-        self._book.index = value
-        self._book.check_borders()
+        self._book.check_borders(self._book.index, value)
         await interaction.response.edit_message(embed=self._book.pages[value], view=self._book)
 
 
 class Book(discord.ui.View):
     def __init__(self, pages: typing.Optional[list], user: discord.User = None, autoindex: bool = True):
+        self._last_index = 0
         self._pages = pages
         if autoindex:
             self._pages = self.autoindex(pages)
-            for page in self._pages:
-                print(page.index)
         self._pages = self.sort(self._pages)
         self._pages = self.fill_empty_slots(self._pages)
-        for page in self._pages:
-            print(page.index)
         self.index = 0
         self._indexes = []
         self.user = user
         super().__init__(timeout=None)
-        self.check_borders()
+        self.check_borders(self.index)
 
     @property
     def pages(self):
@@ -131,14 +128,12 @@ class Book(discord.ui.View):
 
     @discord.ui.button(label='<<', style=discord.ButtonStyle.grey, disabled=True)
     async def first_page(self, interaction: discord.Interaction, button: discord.Button):
-        self.index = 0
-        self.check_borders()
+        self.check_borders(self.index, 0)
         await interaction.response.edit_message(embed=self._pages[0], view=self)
 
     @discord.ui.button(label='<', style=discord.ButtonStyle.grey, disabled=True)
     async def previous_page(self, interaction: discord.Interaction, button: discord.Button):
-        self.index -= 1
-        self.check_borders()
+        self.check_borders(self.index, self.index - 1)
         await interaction.response.edit_message(embed=self._pages[self.index], view=self)
 
     @discord.ui.button(label='🛑', style=discord.ButtonStyle.grey)
@@ -149,14 +144,12 @@ class Book(discord.ui.View):
 
     @discord.ui.button(label='>', style=discord.ButtonStyle.grey)
     async def next_page(self, interaction: discord.Interaction, button: discord.Button):
-        self.index += 1
-        self.check_borders()
+        self.check_borders(self.index, self.index + 1)
         await interaction.response.edit_message(embed=self._pages[self.index], view=self)
 
     @discord.ui.button(label='>>', style=discord.ButtonStyle.grey)
     async def last_page(self, interaction: discord.Interaction, button: discord.Button):
-        self.index = len(self._pages) - 1
-        self.check_borders()
+        self.check_borders(self.index, len(self._pages) - 1)
         await interaction.response.edit_message(embed=self._pages[self.index], view=self)
 
     @discord.ui.button(label='🚫', style=discord.ButtonStyle.grey, disabled=True)
@@ -176,13 +169,16 @@ class Book(discord.ui.View):
     async def filler4(self, interaction: discord.Interaction, button: discord.Button):
         pass
 
-    @discord.ui.button(label='🚫', style=discord.ButtonStyle.grey, disabled=True)
-    async def filler5(self, interaction: discord.Interaction, button: discord.Button):
-        pass
+    @discord.ui.button(label='↩', style=discord.ButtonStyle.grey, disabled=True)
+    async def go_back(self, interaction: discord.Interaction, button: discord.Button):
+        self.index = self._last_index
+        self.check_borders(self.index, self.index)
+        await interaction.response.edit_message(embed=self._pages[self.index], view=self)
 
-    def check_borders(self, index=None):
+    def check_borders(self, current: int, index: int = None):
         first_two = False
         second_two = False
+        self._last_index = current
         self.index = index or self.index
         if self.index == 0:
             first_two = True
@@ -191,6 +187,7 @@ class Book(discord.ui.View):
         self.children[0].disabled, self.children[1].disabled = first_two, first_two
         self.children[3].disabled, self.children[4].disabled = second_two, second_two
         self.children[5].label = f'{self.index + 1}/{len(self.pages)}'
+        self.children[9].disabled = False
 
     def start(self):
         return self._pages[0]
@@ -278,7 +275,6 @@ class Book(discord.ui.View):
             return True
         await interaction.response.send_message(f"You can't use this paginator, it belongs to {self.user.mention}.", ephemeral=True)
         return False
-
 
 
 

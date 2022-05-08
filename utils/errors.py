@@ -8,3 +8,11 @@ class InvalidIndex(Paginator):
 
 class NotAPage(Paginator):
     pass
+
+
+class HelpCommandHandler(Exception):
+    pass
+
+
+class TooManyCommands(HelpCommandHandler):
+    pass
